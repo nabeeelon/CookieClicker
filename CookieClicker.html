@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Cookie Clicker</title>
+</head>
+
+<body>
+
+<h1>Cookie Clicker</h1>
+
+<h2>Login</h2>
+<input id="email" placeholder="Email">
+<input id="password" type="password" placeholder="Password">
+<button onclick="signup()">Sign Up</button>
+<button onclick="login()">Login</button>
+
+<hr>
+
+<h2>🍪 Cookie Game</h2>
+<p>Cookies: <span id="score">0</span></p>
+<button onclick="clickCookie()">Click Cookie</button>
+
+<!-- Firebase script -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
+import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-analytics.js";
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-auth.js";
+import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDZg1xwpJfFZg-eTahJI7qpCyjb92zD8cU",
+  authDomain: "cookie-game-59893.firebaseapp.com",
+  projectId: "cookie-game-59893",
+  storageBucket: "cookie-game-59893.firebasestorage.app",
+  messagingSenderId: "343163805191",
+  appId: "1:343163805191:web:e7b69ec2a6958545f914a2",
+  measurementId: "G-C7N55WLS6H"
+};
+
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+let score = 0;
+let userId = null;
+
+window.signup = async function () {
+  const email = document.getElementById("email").value;
+  const password = document.getElementById("password").value;
+  await createUserWithEmailAndPassword(auth, email, password);
+};
+
+window.login = async function () {
+  const email = document.getElementById("email").value;
+  const password = document.getElementById("password").value;
+  await signInWithEmailAndPassword(auth, email, password);
+};
+
+onAuthStateChanged(auth, async (user) => {
+  if (user) {
+    userId = user.uid;
+    const ref = doc(db, "users", userId);
+    const snap = await getDoc(ref);
+    if (snap.exists()) {
+      score = snap.data().score || 0;
+      document.getElementById("score").textContent = score;
+    }
+  }
+});
+
+window.clickCookie = async function () {
+  score++;
+  document.getElementById("score").textContent = score;
+  if (userId) {
+    await setDoc(doc(db, "users", userId), { score });
+  }
+};
+</script>
+
+</body>
+</html>
