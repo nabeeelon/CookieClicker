@@ -1,1 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Cookie Clicker Online Modern</title>
+<style>
+  body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; margin: 0; padding: 0; background: url('https://images.unsplash.com/photo-1542273917363-3b1817f69a2d') no-repeat center center fixed; background-size: cover; color: #fff; }
+  h1 { font-size: 48px; margin-top: 40px; text-shadow: 2px 2px #000; }
+  h2 { text-shadow: 1px 1px #000; }
+  button { padding: 12px 24px; margin: 5px; font-size: 16px; cursor: pointer; border: none; border-radius: 8px; background-color: #c78b50; color: #fff; box-shadow: 2px 2px 5px rgba(0,0,0,0.5); }
+  button:hover { background-color: #b37443; }
+  input { padding: 10px; margin: 5px; font-size: 16px; border-radius: 6px; border: 1px solid #333; }
+  #auth { background-color: rgba(0,0,0,0.5); padding: 20px; border-radius: 12px; width: 320px; margin: 60px auto; }
+  #game, #leaderboard { margin-top: 30px; display: none; }
+  #leaderboard table { margin: 0 auto; border-collapse: collapse; width: 80%; }
+  #leaderboard th, #leaderboard td { padding: 12px 20px; border: 1px solid #fff; }
+  .upgrade { margin: 20px; }
+  .emoji-picker { margin: 10px; }
+  .reason { font-size: 14px; color: #eee; margin: 5px 0; }
+</style>
+</head>
+<body>
 
+<h1>🍪 Cookie Clicker Online</h1>
+
+<div id="auth">
+  <h2>Login / Sign Up</h2>
+  <input id="email" type="email" placeholder="Email" required>
+  <input id="password" type="password" placeholder="Password" required><br>
+  <input id="username" type="text" placeholder="3-char username" maxlength="3"><br>
+  <div class="emoji-picker">
+    <label>Select your emoji: </label>
+    <select id="emoji">
+      <option value="😃">Happy</option>
+      <option value="😢">Sad</option>
+      <option value="😭">Crying</option>
+      <option value="🤠">Cowboy</option>
+      <option value=":/">:/</option>
+    </select>
+  </div>
+  <button onclick="signup()">Sign Up</button>
+  <button onclick="login()">Login</button>
+  <div class="reason">
+    <p>Reasons to sign up:</p>
+    <ul>
+      <li>Save your leaderboard ranking</li>
+      <li>Unlock and track your upgrades</li>
+      <li>Personalize your username and emoji badge</li>
+    </ul>
+  </div>
+</div>
+
+<div id="game">
+  <h2>Welcome, <span id="displayName"></span></h2>
+  <p>Cookies: <span id="score">0</span></p>
+  <button onclick="clickCookie()">Click Cookie 🍪</button>
+
+  <div class="upgrade">
+    <h3>Upgrades</h3>
+    <button onclick="buyClickUpgrade()">+1 Cookie per Click (Cost: <span id="clickUpgradeCost">50</span>)</button><br>
+    <button onclick="buyAutoClicker()">Auto-Clicker +1/sec (Cost: <span id="autoClickerCost">100</span>)</button>
+  </div>
+
+  <div>
+    <button onclick="logout()">Logout</button>
+  </div>
+</div>
+
+<div id="leaderboard">
+  <h2>🏆 Leaderboard</h2>
+  <table>
+    <thead>
+      <tr><th>Rank</th><th>User</th><th>Cookies</th></tr>
+    </thead>
+    <tbody id="leaderboardBody"></tbody>
+  </table>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
+import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-analytics.js";
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-auth.js";
+import { getFirestore, doc, setDoc, getDoc, collection, query, orderBy, limit, getDocs } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "REPLACE_WITH_YOUR_KEY",
+  authDomain: "cookie-game-59893.firebaseapp.com",
+  projectId: "cookie-game-59893",
+  storageBucket: "cookie-game-59893.firebasestorage.app",
+  messagingSenderId: "343163805191",
+  appId: "1:343163805191:web:e7b69ec2a6958545f914a2",
+  measurementId: "G-C7N55WLS6H"
+};
+
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+let score = 0;
+let userId = null;
+let cookiesPerClick = 1;
+let autoClicker = 0;
+let autoClickInterval = null;
+const clickUpgradeBase = 50;
+const autoClickerBase = 100;
+
+window.signup = async function() {
+  const email = document.getElementById("email").value;
+  const password = document.getElementById("password").value;
+  const username = document.getElementById("username").value;
+  const emoji = document.getElementById("emoji").value;
+  try {
+    await createUserWithEmailAndPassword(auth, email, password);
+    await setDoc(doc(db, "users", auth.currentUser.uid), { score: 0, cookiesPerClick: 1, autoClicker: 0, email, username, emoji });
+    alert("Sign-up successful! Please log in.");
+  } catch(e) { alert("Error: " + e.message); }
+};
+
+window.login = async function() {
+  const email = document.getElementById("email").value;
+  const password = document.getElementById("password").value;
+  try { await signInWithEmailAndPassword(auth, email, password); } 
+  catch(e) { alert("Error: " + e.message); }
+};
+
+window.logout = async function() { await signOut(auth); location.reload(); };
+
+onAuthStateChanged(auth, async (user) => {
+  if(user) {
+    userId = user.uid;
+    document.getElementById("auth").style.display = "none";
+    document.getElementById("game").style.display = "block";
+    document.getElementById("leaderboard").style.display = "block";
+
+    const ref = doc(db, "users", userId);
+    const snap = await getDoc(ref);
+    if(snap.exists()) {
+      const data = snap.data();
+      score = data.score || 0;
+      cookiesPerClick = data.cookiesPerClick || 1;
+      autoClicker = data.autoClicker || 0;
+      document.getElementById("displayName").textContent = `${data.emoji} ${data.username}`;
+    }
+
+    updateScore();
+    updateUpgradeCost();
+    startAutoClicker();
+    updateLeaderboard();
+    setInterval(saveProgress, 5000);
+    setInterval(updateLeaderboard, 10000);
+  }
+});
+
+window.clickCookie = function() { score += cookiesPerClick; updateScore(); };
+window.buyClickUpgrade = function() { const cost = Math.floor(clickUpgradeBase * cookiesPerClick); if(score>=cost){score-=cost; cookiesPerClick++; updateScore(); updateUpgradeCost();} else{alert("Not enough cookies!");}};
+window.buyAutoClicker = function() { const cost = Math.floor(autoClickerBase * (autoClicker+1)); if(score>=cost){score-=cost; autoClicker++; updateScore(); updateUpgradeCost(); startAutoClicker();} else{alert("Not enough cookies!");}};
+
+function startAutoClicker(){ if(autoClickInterval) clearInterval(autoClickInterval); if(autoClicker>0){ autoClickInterval=setInterval(()=>{score+=autoClicker; updateScore();},1000);}}
+function updateScore(){ document.getElementById("score").textContent = score; }
+function updateUpgradeCost(){ document.getElementById("clickUpgradeCost").textContent = Math.floor(clickUpgradeBase * cookiesPerClick); document.getElementById("autoClickerCost").textContent = Math.floor(autoClickerBase * (autoClicker+1));}
+async function saveProgress(){ if(userId){ await setDoc(doc(db,"users",userId),{ score, cookiesPerClick, autoClicker, email: document.getElementById("email").value, username: document.getElementById("username").value, emoji: document.getElementById("emoji").value });}}
+async function updateLeaderboard(){ const q=query(collection(db,"users"), orderBy("score","desc"), limit(10)); const snap=await getDocs(q); const tbody=document.getElementById("leaderboardBody"); tbody.innerHTML=""; let rank=1; snap.forEach(docSnap=>{ const data=docSnap.data(); tbody.innerHTML+=`<tr><td>${rank}</td><td>${data.emoji} ${data.username}</td><td>${data.score}</td></tr>`; rank++;});}
+</script>
+</body>
+</html>
